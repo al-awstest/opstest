@@ -1,0 +1,34 @@
+version: 0.0
+os: linux 
+
+files:
+  - source: .mvn
+    destination: /home/ubuntu/test_app/.mvn
+  - source: src
+    destination: /home/ubuntu/test_app/src
+  - source: mvnw
+    destination: /home/ubuntu/test_app/mvnw
+  - source: pom.xml
+    destination: /home/ubuntu/test_app/pom.xml
+
+hooks:
+
+  ApplicationStop:
+    - location: scripts/stop
+      timeout: 30
+      runas: ubuntu
+
+  BeforeInstall:
+    - location: scripts/copy_config
+      timeout: 10
+      runas: ubuntu
+
+  ApplicationStart:
+    - location: scripts/start    
+      timeout: 30
+      runas: ubuntu
+
+  ValidateService:
+    - location: scripts/validate     
+      timeout: 200
+      runas: ubuntu

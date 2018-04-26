@@ -1,0 +1,11 @@
+#!/bin/bash
+cd `dirname $0`/../
+if pgrep -F app.pid
+then
+    kill `pgrep -F app.pid`
+    rm app.pid
+else
+    echo "app was not running"
+    rm -f app.pid
+    exit 1
+fi

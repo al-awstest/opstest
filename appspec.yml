@@ -12,8 +12,8 @@ files:
     destination: /home/ubuntu/test_app
 
 permissions:
-  - object: /home/ubuntu/test_app
-    pattern: "."
+  - object: /home/ubuntu
+    pattern: "test_app"
     owner: ubuntu
     group: ubuntu
 

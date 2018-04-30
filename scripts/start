@@ -1,4 +1,4 @@
 #!/bin/bash
 cd $HOME/test_app
-./mvnw spring-boot:run -Dspring.config.location=/tmp/application.properties > app.log 2>&1 &
+nohup ./mvnw spring-boot:run -Dspring.config.location=/tmp/application.properties > app.log 2>&1 &
 echo $! > app.pid

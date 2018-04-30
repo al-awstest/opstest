@@ -11,6 +11,11 @@ files:
   - source: pom.xml
     destination: /home/ubuntu/test_app/pom.xml
 
+permissions:
+  - object: /home/ubuntu/test_app
+    owner: ubuntu
+    group: ubuntu
+
 hooks:
 
   ApplicationStop:

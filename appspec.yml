@@ -2,8 +2,6 @@ version: 0.0
 os: linux 
 
 files:
-  - source: scripts
-    destination: /home/ubuntu/test_app/scripts
   - source: .mvn
     destination: /home/ubuntu/test_app/.mvn
   - source: src
@@ -16,21 +14,21 @@ files:
 hooks:
 
   ApplicationStop:
-    - location: /home/ubuntu/test_app/scripts/stop
+    - location: scripts/stop
       timeout: 30
       runas: ubuntu
 
   AfterInstall:
-    - location: /home/ubuntu/test_app/scripts/copy_config
+    - location: scripts/copy_config
       timeout: 10
       runas: ubuntu
 
   ApplicationStart:
-    - location: /home/ubuntu/test_app/scripts/start
+    - location: scripts/start
       timeout: 30
       runas: ubuntu
 
   ValidateService:
-    - location: /home/ubuntu/test_app/scripts/validate
+    - location: scripts/validate
       timeout: 200
       runas: ubuntu

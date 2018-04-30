@@ -1,6 +1,6 @@
 #!/bin/bash
-cd `dirname $0`/../
-if pgrep -F app.pid
+cd $HOME/test_app
+if pgrep -F app.pid > /dev/null 2>&1
 then
     kill `pgrep -F app.pid`
     rm app.pid

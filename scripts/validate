@@ -1,5 +1,5 @@
 #!/bin/bash
-cd `dirname $0`/../
+cd $HOME/test_app
 
 if ! pgrep -F app.pid > /dev/null 2>&1
 then

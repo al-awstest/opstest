@@ -7,12 +7,13 @@ files:
   - source: src
     destination: /home/ubuntu/test_app/src
   - source: mvnw
-    destination: /home/ubuntu/test_app/mvnw
+    destination: /home/ubuntu/test_app
   - source: pom.xml
-    destination: /home/ubuntu/test_app/pom.xml
+    destination: /home/ubuntu/test_app
 
 permissions:
   - object: /home/ubuntu/test_app
+    pattern: "."
     owner: ubuntu
     group: ubuntu
 

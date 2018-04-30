@@ -16,6 +16,8 @@ permissions:
     pattern: "test_app"
     owner: ubuntu
     group: ubuntu
+    type:
+      - directory
 
 hooks:
 

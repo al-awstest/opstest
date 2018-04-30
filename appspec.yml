@@ -20,7 +20,7 @@ hooks:
       timeout: 30
       runas: ubuntu
 
-  BeforeInstall:
+  AfterInstall:
     - location: /home/ubuntu/test_app/scripts/copy_config
       timeout: 10
       runas: ubuntu

@@ -1,0 +1,444 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "CodeDeploy-ed Succhapp on EC2 instances in AutoScalingGroup behind ElasticLoadBalancer",
+
+  "Parameters" : {
+
+    "InstanceType" : {
+      "Description" : "Enter t2.micro as we have mapping only for them here",
+      "Type" : "String",
+      "AllowedValues" : ["t2.micro"],
+      "Default" : "t2.micro"
+    },
+
+    "OperatorEMail": {
+      "Description": "EMail address to notify if there are any scaling operations",
+      "Type": "String",
+      "AllowedPattern": "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)",
+      "ConstraintDescription": "must be a valid email address."
+    },
+
+    "PublicGitHubRepo": {
+      "Description": "GitHub Repo to deploy app from",
+      "Type": "String",
+      "AllowedPattern": "[a-zA-Z0-9\\-]+/[a-zA-Z0-9_\\-\\.]+",
+      "ConstraintDescription": "must be a valid GitHub Repo.",
+      "Default": "al-awstest/opstest"
+    },
+
+    "GitCommitId": {
+      "Description": "Git CommitID to use for initial deployment",
+      "Type": "String",
+      "AllowedPattern": "[a-f0-9]{40}",
+      "ConstraintDescription": "must be a valid Git CommitID.",
+      "Default": "e914e87789ed83348ce830b684566c882f470938"
+    },
+
+   "DomainName" : {
+      "Description" : "Enter Domain Name NS for wich Route53 wil be controlling",
+      "Type" : "String",
+      "AllowedPattern": "[a-zA-Z0-9\\-\\.]+",
+      "ConstraintDescription": "must be a valid Domain Name"
+    },
+
+    "AdministratorAccountId": {
+      "Description": "EMail address to notify if there are any scaling operations",
+      "Type": "String",
+      "MaxLength": "12",
+      "MinLength": "12"
+    }
+
+  },
+
+  "Mappings" : {
+    "Region2AMI" : {
+      "us-east-1"      : { "AMI" : "ami-9c56efe3" },
+      "us-west-2"      : { "AMI" : "ami-51e99c29" },
+      "us-west-1"      : { "AMI" : "ami-8aa8b4ea" },
+      "eu-west-1"      : { "AMI" : "ami-b29cb5cb" },
+      "eu-west-2"      : { "AMI" : "ami-3995775e" },
+      "eu-west-3"      : { "AMI" : "ami-45a51438" },
+      "eu-central-1"   : { "AMI" : "ami-415b7baa" },
+      "ap-southeast-1" : { "AMI" : "ami-831a32ff" },
+      "ap-northeast-1" : { "AMI" : "ami-5aaf4225" },
+      "ap-northeast-2" : { "AMI" : "ami-099f3667" },
+      "ap-southeast-2" : { "AMI" : "ami-21b86c43" },
+      "ap-south-1"     : { "AMI" : "ami-222d0d4d" },
+      "us-east-2"      : { "AMI" : "ami-66c8fa03" },
+      "ca-central-1"   : { "AMI" : "ami-5fc6463b" },
+      "sa-east-1"      : { "AMI" : "ami-fd6c3e91" },
+      "cn-north-1"     : { "AMI" : "ami-bc9648d1" }
+    }
+  },
+
+  "Resources" : {
+    "NotificationTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Subscription": [ { "Endpoint": { "Ref": "OperatorEMail" }, "Protocol": "email" } ]
+      }
+    },
+
+    "AppServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : ""},
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "MinSize" : "2",
+        "MaxSize" : "3",
+        "LoadBalancerNames" : [ { "Ref" : "ElasticLoadBalancer" } ],
+        "NotificationConfiguration" : {
+          "TopicARN" : { "Ref" : "NotificationTopic" },
+          "NotificationTypes" : [ "autoscaling:EC2_INSTANCE_LAUNCH",
+                                  "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
+                                  "autoscaling:EC2_INSTANCE_TERMINATE",
+                                  "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"]
+        }
+      },
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT10M",
+          "Count"   : "1"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": "1",
+          "MaxBatchSize": "1",
+          "PauseTime" : "PT10M",
+          "WaitOnResourceSignals": "true"
+        }
+      }
+    },
+
+    "LaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "packages" : {
+              "apt" : {
+                "openjdk-8-jdk" : [],
+                "git": [],
+                "ruby" : [],
+                "wget" : []
+              }
+            },
+
+            "files" : {
+              "/etc/cfn/cfn-hup.conf" : {
+                "content" : { "Fn::Join" : ["", [
+                  "[main]\n",
+                  "stack=", { "Ref" : "AWS::StackId" }, "\n",
+                  "region=", { "Ref" : "AWS::Region" }, "\n"
+                ]]},
+                "mode"    : "000400",
+                "owner"   : "root",
+                "group"   : "root"
+              },
+
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
+                "content": { "Fn::Join" : ["", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                  "         --stack ", { "Ref" : "AWS::StackName" },
+                  "         --resource LaunchConfig ",
+                  "         --region ", { "Ref" : "AWS::Region" }, "\n",
+                  "runas=root\n"
+                ]]}
+              }
+            },
+
+            "commands" : {
+              "01_wget_codedeploy_agent" : {
+                "command" : {"Fn::Join" : ["", [ "wget -O /tmp/install https://aws-codedeploy-", { "Ref" : "AWS::Region" }, ".s3.amazonaws.com/latest/install" ]]}
+              },
+              "02_run_codedeploy_agent" : {
+                "command" : "chmod +x /tmp/install && /tmp/install auto"
+              }
+            },
+
+            "services" : {
+              "sysvinit" : {
+                "codedeploy-agent" : { "enabled" : "true", "ensureRunning" : "true" },
+                "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true",
+                              "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"]}
+              }
+            }
+          }
+        }
+      },
+      "Properties" : {
+        "ImageId" : { "Fn::FindInMap" : [ "Region2AMI", { "Ref" : "AWS::Region" }, "AMI"] },
+        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "IamInstanceProfile" : { "Ref" : "EC2InstanceProfile" },
+        "UserData": { "Fn::Base64": { "Fn::Join": ["", [
+            "#!/bin/bash -xe\n",
+            "apt-get update\n",
+            "apt-get -y install python-pip\n",
+            "pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+            "cp /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup \n",
+            "chmod +x /etc/init.d/cfn-hup \n",
+            "update-rc.d cfn-hup defaults \n",
+
+            "cfn-init -v ",
+            "         --stack ", { "Ref": "AWS::StackName" },
+            "         --resource LaunchConfig ",
+            "         --region ", { "Ref": "AWS::Region" }, "\n",
+
+            "cfn-signal -e $? ",
+            "         --stack ", { "Ref": "AWS::StackName" },
+            "         --resource AppServerGroup ",
+            "         --region ", { "Ref": "AWS::Region" }, "\n"
+        ]]}}
+      }
+    },
+
+    "WebServerScaleUpPolicy" : {
+      "Type" : "AWS::AutoScaling::ScalingPolicy",
+      "Properties" : {
+        "AdjustmentType" : "ChangeInCapacity",
+        "AutoScalingGroupName" : { "Ref" : "AppServerGroup" },
+        "Cooldown" : "60",
+        "ScalingAdjustment" : "1"
+      }
+    },
+    "WebServerScaleDownPolicy" : {
+      "Type" : "AWS::AutoScaling::ScalingPolicy",
+      "Properties" : {
+        "AdjustmentType" : "ChangeInCapacity",
+        "AutoScalingGroupName" : { "Ref" : "AppServerGroup" },
+        "Cooldown" : "60",
+        "ScalingAdjustment" : "-1"
+      }
+    },
+
+    "CPUAlarmHigh": {
+     "Type": "AWS::CloudWatch::Alarm",
+     "Properties": {
+        "AlarmDescription": "Scale-up if CPU > 90% for 10 minutes",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Statistic": "Average",
+        "Period": "300",
+        "EvaluationPeriods": "2",
+        "Threshold": "90",
+        "AlarmActions": [ { "Ref": "WebServerScaleUpPolicy" } ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": { "Ref": "AppServerGroup" }
+          }
+        ],
+        "ComparisonOperator": "GreaterThanThreshold"
+      }
+    },
+    "CPUAlarmLow": {
+     "Type": "AWS::CloudWatch::Alarm",
+     "Properties": {
+        "AlarmDescription": "Scale-down if CPU < 70% for 10 minutes",
+        "MetricName": "CPUUtilization",
+        "Namespace": "AWS/EC2",
+        "Statistic": "Average",
+        "Period": "300",
+        "EvaluationPeriods": "2",
+        "Threshold": "70",
+        "AlarmActions": [ { "Ref": "WebServerScaleDownPolicy" } ],
+        "Dimensions": [
+          {
+            "Name": "AutoScalingGroupName",
+            "Value": { "Ref": "AppServerGroup" }
+          }
+        ],
+        "ComparisonOperator": "LessThanThreshold"
+      }
+    },
+
+    "ElasticLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "CrossZone" : "true",
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "8080",
+          "Protocol" : "HTTP"
+        } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:8080/hello",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        }
+      }
+    },
+
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP from the load balancer only",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "80",
+          "ToPort" : "8080",
+          "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["ElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]},
+          "SourceSecurityGroupName" : {"Fn::GetAtt" : ["ElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}
+        } ]
+      }
+    },
+
+    "SuchappApplication" : {
+      "Type" : "AWS::CodeDeploy::Application",
+      "Properties" : {
+        "ApplicationName" : "Suchapp",
+        "ComputePlatform" : "Server"
+      }
+    },
+
+    "DeploymentGroup" : {
+      "Type" : "AWS::CodeDeploy::DeploymentGroup",
+      "Properties" : {
+        "DeploymentGroupName" : "testDeployGroup",
+        "ApplicationName" : {"Ref" : "SuchappApplication"},
+        "AutoScalingGroups" : [ {"Ref" : "AppServerGroup" } ],
+        "LoadBalancerInfo": {
+          "ElbInfoList": [{
+            "Name": { "Ref" : "ElasticLoadBalancer" }
+          }]
+        },
+        "Deployment" : {
+          "Description" : "Initial deployment",
+          "IgnoreApplicationStopFailures" : "true",
+          "Revision" : {
+            "RevisionType" : "GitHub",
+            "GitHubLocation" : {
+              "Repository" : {"Ref" : "PublicGitHubRepo"},
+              "CommitId" : {"Ref" : "GitCommitId"}
+            }
+          }
+        },
+        "DeploymentConfigName" : "CodeDeployDefault.HalfAtATime",
+        "DeploymentStyle": { "DeploymentOption": "WITH_TRAFFIC_CONTROL" },
+        "ServiceRoleArn" : {"Fn::GetAtt" : ["CodeDeployServiceRole", "Arn"] },
+        "TriggerConfigurations": [
+          {
+            "TriggerEvents": [ "DeploymentSuccess", "DeploymentFailure" ],
+            "TriggerName": "MyTarget",
+            "TriggerTargetArn": { "Ref": "NotificationTopic" }
+          }
+        ]
+      }
+    },
+
+    "CodeDeployServiceRole" : {
+      "Type": "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [ "codedeploy.amazonaws.com" ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path" : "/",
+        "ManagedPolicyArns" : [ "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole" ]
+      }
+    },
+
+    "CodeDeployInstanceRole" : {
+      "Type": "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [ "ec2.amazonaws.com" ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path" : "/",
+        "ManagedPolicyArns" : [ "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy" ]
+      }
+    },
+
+    "EC2InstanceProfile" : {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties" : {
+        "Path" : "/",
+        "Roles" : [ { "Ref" : "CodeDeployInstanceRole" } ]
+      }
+    },
+
+    "RecordSet" : {
+      "Type" : "AWS::Route53::RecordSet",
+      "Properties" : {
+        "HostedZoneName" : { "Fn::Join" : [ "", [{"Ref" : "DomainName"}, "." ]]},
+        "Comment" : "alias targeted to LoadBalancer.",
+        "Name" : { "Fn::Join" : [ "", [{"Ref" : "DomainName"}, "." ]]},
+        "Type" : "A",
+        "Region": { "Ref" : "AWS::Region" },
+        "SetIdentifier": { "Fn::Join" : [ "", [ {"Ref" : "AWS::Region"}, ".", {"Ref" : "DomainName"} ,"."]]},
+        "AliasTarget" : {
+          "HostedZoneId" : { "Fn::GetAtt" : ["ElasticLoadBalancer", "CanonicalHostedZoneNameID"] },
+          "DNSName" : { "Fn::GetAtt" : ["ElasticLoadBalancer","DNSName"] },
+          "EvaluateTargetHealth": "true"
+        }
+      }
+    },
+
+    "GitHubPolicy" : {
+      "Type" : "AWS::IAM::Policy",
+      "Properties" : {
+        "PolicyName" : "CodeDeploy-Access",
+        "PolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "codedeploy:GetDeploymentConfig",
+              "Resource": { "Fn::Join" : [ "", [ "arn:aws:codedeploy:", {"Ref" : "AWS::Region"}, ":", { "Ref": "AdministratorAccountId" }, ":deploymentconfig:*" ]]}
+            },
+            {
+              "Effect": "Allow",
+              "Action": "codedeploy:RegisterApplicationRevision",
+              "Resource": { "Fn::Join" : [ "", [ "arn:aws:codedeploy:", {"Ref" : "AWS::Region"}, ":", { "Ref": "AdministratorAccountId" }, ":application:", { "Ref" : "SuchappApplication" } ]]}
+            },
+            {
+              "Effect": "Allow",
+              "Action": "codedeploy:GetApplicationRevision",
+              "Resource": { "Fn::Join" : [ "", [ "arn:aws:codedeploy:", {"Ref" : "AWS::Region"}, ":", { "Ref": "AdministratorAccountId" }, ":application:", { "Ref" : "SuchappApplication" } ]]}
+            },
+            {
+              "Effect": "Allow",
+              "Action": "codedeploy:CreateDeployment",
+              "Resource": { "Fn::Join" : [ "", [ "arn:aws:codedeploy:", {"Ref" : "AWS::Region"}, ":", { "Ref": "AdministratorAccountId" }, ":deploymentgroup:", { "Ref" : "SuchappApplication" }, "/", { "Ref" : "DeploymentGroup" } ]]}
+            }
+          ]
+        },
+        "Users" : [ "GitHubUser" ]
+      }
+    }
+
+  },
+
+  "Outputs" : {
+    "URL" : {
+      "Description" : "The URL of the this region's ELB",
+      "Value" :  { "Fn::Join" : [ "", [ "http://", { "Fn::GetAtt" : [ "ElasticLoadBalancer", "DNSName" ]}]]}
+    }
+  }
+}

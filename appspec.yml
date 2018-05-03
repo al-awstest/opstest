@@ -27,6 +27,11 @@ hooks:
       timeout: 30
       runas: ubuntu
 
+  BeforeInstall:
+    - location: scripts/clean-up
+      timeout: 30
+      runas: ubuntu
+
   AfterInstall:
     - location: scripts/copy_config
       timeout: 10

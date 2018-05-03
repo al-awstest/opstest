@@ -1,0 +1,6 @@
+#!/bin/bash
+cd $HOME
+if [ -d test_app ]
+then
+    rm -rf test_app
+fi

@@ -1,0 +1,103 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "Roles for Stack Sets and user for GitHub",
+  "Parameters" : {
+    
+    "AdministratorAccountId": {
+      "Description": "EMail address to notify if there are any scaling operations",
+      "Type": "String",
+      "MaxLength": "12",
+      "MinLength": "12"
+    }
+
+  },
+  
+  "Resources" : {
+
+    "AdministrationRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "AWSCloudFormationStackSetAdministrationRole",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [ "cloudformation.amazonaws.com" ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path" : "/",
+        "Policies" : [
+          {
+            "PolicyName": "AssumeRole-AWSCloudFormationStackSetExecutionRole",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Resource": "arn:aws:iam::*:role/AWSCloudFormationStackSetExecutionRole",
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "ExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties" : {
+        "RoleName": "AWSCloudFormationStackSetExecutionRole",
+        "AssumeRolePolicyDocument" : {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": [ { "Ref": "AdministratorAccountId" } ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path" : "/",
+        "ManagedPolicyArns" : [ "arn:aws:iam::aws:policy/AdministratorAccess" ]
+      }
+    },
+
+    "GitHubUser": {
+      "Type" : "AWS::IAM::User",
+      "Properties": {
+        "UserName": "GitHubUser"
+      }
+    },
+
+    "GitHubAccessKey" : {
+      "Type" : "AWS::IAM::AccessKey",
+      "Properties" : {
+        "UserName" : { "Ref" : "GitHubUser" }
+      }
+    } 
+
+  },
+
+  "Outputs": {
+
+    "AccessKeyforGitHubAccessKey" : {
+      "Value" : { "Ref" : "GitHubAccessKey" }
+    },
+
+    "SecretKeyforGitHubAccessKey" : {
+      "Value" : {
+        "Fn::GetAtt" : [ "GitHubAccessKey", "SecretAccessKey" ]
+      }
+    }
+
+  }
+
+}

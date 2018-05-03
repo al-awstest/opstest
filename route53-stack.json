@@ -1,0 +1,39 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Simple route53 hosted zone to add RecordSetGroups to",
+
+  "Parameters" : {
+
+    "DomainName" : {
+      "Description" : "Enter Domain Name NS for wich Route53 wil be controlling",
+      "Type" : "String",
+      "AllowedPattern": "[a-zA-Z0-9\\-\\.]+",
+      "ConstraintDescription": "must be a valid Domain Name"
+    }
+
+  },
+
+  "Resources" : {
+
+    "HostedZone": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "HostedZoneConfig": {
+          "Comment": "My hosted zone for test domain"
+        },
+        "Name": { "Ref" : "DomainName" }
+      }
+    }
+
+  },
+
+  "Outputs" : {
+    "NameServers" : {
+      "Description" : "NameServers for test domain",
+      "Value" :  { "Fn::Join" : [ ", ", { "Fn::GetAtt" : [ "HostedZone", "NameServers" ]} ] }
+    }
+  }
+
+
+}

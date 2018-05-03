@@ -11,6 +11,6 @@ public class SuchController {
 
 	@RequestMapping("/hello")
 	public String suchHello(){
-		return "hello " + suchName;
+		return "running on AZ " + suchName;
 	}
 }
